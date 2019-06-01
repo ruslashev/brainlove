@@ -2,6 +2,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#define OPTPARSE_IMPLEMENTATION
+#define OPTPARSE_API static
+#include "optparse.h"
+
+struct arg
+{
+    FILE *input;
+    int assembly;
+    char *output;
+};
 
 enum token_type
 {
@@ -23,6 +33,7 @@ struct token
 };
 
 #define print(...) do { printf(__VA_ARGS__); puts(""); } while (0)
+#define die(...) do { print(__VA_ARGS__); exit(EXIT_FAILURE); } while (0)
 #define error(...) do { \
     printf("error: "); \
     printf(__VA_ARGS__); \
@@ -40,18 +51,50 @@ static void* malloc_check(size_t size)
     return buffer;
 }
 
-static FILE* parse_arguments(int argc, char **argv)
+static struct arg parse_arguments(int argc, char **argv)
 {
-    FILE *input;
+    int option;
+    struct optparse options;
+    struct optparse_long longopts[] = {
+        { "assembly", 'a', OPTPARSE_NONE },
+        { "output",   'o', OPTPARSE_REQUIRED },
+        { 0 }
+    };
+    struct arg args = { .assembly = 0, .input = NULL, .output = NULL };
+    char *extra;
 
-    if (argc == 1)
-        return stdin;
+    optparse_init(&options, argv);
 
-    input = fopen(argv[1], "r");
-    if (input == NULL)
-        error("can't open file '%s'", argv[1]);
+    while ((option = optparse_long(&options, longopts, NULL)) != -1)
+        switch (option) {
+        case 'a':
+            args.assembly = 1;
+            break;
+        case 'o':
+            args.output = strdup(options.optarg);
+            break;
+        default:
+            die("%s: %s", argv[0], options.errmsg);
+        }
 
-    return input;
+    while ((extra = optparse_arg(&options)) != NULL) {
+        if (args.input != NULL)
+            die("extra argument '%s' specified", extra);
+
+        if (strcmp(extra, "-") == 0) {
+            args.input = stdin;
+            continue;
+        }
+
+        args.input = fopen(extra, "r");
+        if (args.input == NULL)
+            error("can't open file '%s'", extra);
+    }
+
+    if (args.input == NULL)
+        args.input = stdin;
+
+    return args;
 }
 
 static char* read_file(FILE *file)
@@ -102,7 +145,7 @@ static enum token_type char_to_token_type(char x)
     case ']': return TOK_END;
     case '.': return TOK_IN;
     case ',': return TOK_OUT;
-    default: print("char_to_token_type: invalid char '%c'", x); exit(1);
+    default: die("char_to_token_type: invalid char '%c'", x);
     }
 }
 
@@ -150,11 +193,13 @@ static struct token* tokenize_source(const char *buffer)
 
 int main(int argc, char **argv)
 {
-    FILE *input = parse_arguments(argc, argv);
-    char *source = read_file(input);
+    struct arg args = parse_arguments(argc, argv);
+    char *source = read_file(args.input);
     struct token *tokens = tokenize_source(source);
 
     free(tokens);
     free(source);
+    if (args.output)
+        free(args.output);
 }
 
