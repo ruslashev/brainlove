@@ -9,22 +9,23 @@ enum token_type
     TOK_SUB,
     TOK_NEXT,
     TOK_PREV,
-    TOK_OUT,
-    TOK_IN,
     TOK_BEG,
     TOK_END,
+    TOK_OUT,
+    TOK_IN,
+    TOK_EOF,
 };
 
 struct token
 {
-    enum token_type type;
+    int type;
     int count;
 };
 
 #define print(...) do { printf(__VA_ARGS__); puts(""); } while (0)
 #define error(...) do { \
     printf("error: "); \
-    print(__VA_ARGS__); \
+    printf(__VA_ARGS__); \
     printf(": %s", strerror(errno)); \
     puts(""); \
     exit(EXIT_FAILURE); \
@@ -85,6 +86,21 @@ static int is_valid_token(char x)
         || x == '[' || x == ']' || x == '.' || x == ',';
 }
 
+static enum token_type char_to_token_type(char x)
+{
+    switch (x) {
+    case '+': return TOK_ADD;
+    case '-': return TOK_SUB;
+    case '>': return TOK_NEXT;
+    case '<': return TOK_PREV;
+    case '[': return TOK_BEG;
+    case ']': return TOK_END;
+    case '.': return TOK_IN;
+    case ',': return TOK_OUT;
+    default: print("char_to_token_type: invalid char '%c'", x); exit(1);
+    }
+}
+
 static int calculate_num_tokens(const char *buffer)
 {
     int num = 0;
@@ -100,21 +116,40 @@ static int calculate_num_tokens(const char *buffer)
     return num;
 }
 
-static void tokenize_source(const char *buffer)
+static struct token* tokenize_source(const char *buffer)
 {
     int num_tokens = calculate_num_tokens(buffer);
+    struct token *tokens = malloc_check((num_tokens + 1) * sizeof(struct token));
+    int consecutive = 1, token_idx = 0;
 
-    printf("num_tokens=%d\n", num_tokens);
+    for (const char *ptr = buffer; *ptr != '\0'; ++ptr) {
+        if (!is_valid_token(*ptr))
+            continue;
+
+        while ((*ptr == '+' || *ptr == '-') && *(ptr + 1) == *ptr) {
+            ++consecutive;
+            ++ptr;
+        }
+
+        tokens[token_idx].type = char_to_token_type(*ptr);
+        tokens[token_idx].count = consecutive;
+        ++token_idx;
+
+        consecutive = 1;
+    }
+
+    tokens[token_idx].type = TOK_EOF;
+
+    return tokens;
 }
 
 int main(int argc, char **argv)
 {
     FILE *input = parse_arguments(argc, argv);
     char *source = read_file(input);
+    struct token *tokens = tokenize_source(source);
 
-    print("src: '%s'", source);
-
-    tokenize_source(source);
+    free(tokens);
     free(source);
 }
 
