@@ -195,12 +195,108 @@ static struct token* tokenize_source(const char *buffer)
     return tokens;
 }
 
+static void indent(FILE *output)
+{
+    fprintf(output, "    ");
+}
+
+static void output_assembly(const struct token *tokens, FILE *output)
+{
+    const char *prologue =
+        "global _start\n"
+        "\n"
+        "section .data\n"
+        "tape:\n"
+        "    times 30000 db 0\n"
+        "\n"
+        "section .text\n"
+        "_start:\n"
+        "    xor rbx, rbx\n"
+        "    mov rdx, 1\n"
+        "\n"
+        , *epilogue =
+        "\n"
+        "    mov rdi, 0\n"
+        "    mov rax, 60\n"
+        "    syscall\n"
+        , *inchar =
+        "    mov rdi, 0\n"
+        "    mov rsi, tape\n"
+        "    add rsi, rbx\n"
+        "    mov rax, 0\n"
+        "    syscall\n"
+        , *outchar =
+        "    mov rdi, 1\n"
+        "    mov rsi, tape\n"
+        "    add rsi, rbx\n"
+        "    mov rax, 1\n"
+        "    syscall\n"
+        , *jmp_beg =
+        "    movzx r11, byte [tape + rbx]\n"
+        "    test r11, r11\n"
+        "    jz end_%d\n"
+        "beg_%d:\n"
+        , *jmp_end =
+        "    movzx r11, byte [tape + rbx]\n"
+        "    test r11, r11\n"
+        "    jnz beg_%d\n"
+        "end_%d:\n";
+    int level = 1;
+
+    if (fputs(prologue, output) == EOF)
+        error("failed to write prologue");
+
+    for (int i = 0; tokens[i].type != TOK_EOF; ++i)
+        switch (tokens[i].type) {
+        case TOK_ADD:
+            indent(output);
+            fprintf(output, "add byte [tape + rbx], %d\n", tokens[i].count);
+            break;
+        case TOK_SUB:
+            indent(output);
+            fprintf(output, "sub byte [tape + rbx], %d\n", tokens[i].count);
+            break;
+        case TOK_NEXT:
+            indent(output);
+            fprintf(output, "add rbx, %d\n", tokens[i].count);
+            break;
+        case TOK_PREV:
+            indent(output);
+            fprintf(output, "sub rbx, %d\n", tokens[i].count);
+            break;
+        case TOK_BEG:
+            fprintf(output, jmp_beg, level, level);
+            ++level;
+            break;
+        case TOK_END:
+            --level;
+            fprintf(output, jmp_end, level, level);
+            break;
+        case TOK_IN:
+            fputs(inchar, output);
+            break;
+        case TOK_OUT:
+            fputs(outchar, output);
+            break;
+        default:
+            die("bad token type %d", tokens[i].type);
+        }
+
+    fputs(epilogue, output);
+}
+
 int main(int argc, char **argv)
 {
     struct arg args = parse_arguments(argc, argv);
     char *source = read_file(args.input);
     struct token *tokens = tokenize_source(source);
 
+    if (args.assembly) {
+        output_assembly(tokens, args.output);
+        goto cleanup;
+    }
+
+cleanup:
     free(tokens);
     free(source);
 }
