@@ -86,6 +86,11 @@ static int is_valid_token(char x)
         || x == '[' || x == ']' || x == '.' || x == ',';
 }
 
+static int is_repeatable(char x)
+{
+    return x == '+' || x == '-' || x == '>' || x == '<';
+}
+
 static enum token_type char_to_token_type(char x)
 {
     switch (x) {
@@ -107,7 +112,7 @@ static int calculate_num_tokens(const char *buffer)
 
     for (const char *ptr = buffer; *ptr != '\0'; ++ptr)
         if (is_valid_token(*ptr)) {
-            while ((*ptr == '+' || *ptr == '-') && *(ptr + 1) == *ptr)
+            while (is_repeatable(*ptr) && *(ptr + 1) == *ptr)
                 ++ptr;
 
             ++num;
@@ -126,7 +131,7 @@ static struct token* tokenize_source(const char *buffer)
         if (!is_valid_token(*ptr))
             continue;
 
-        while ((*ptr == '+' || *ptr == '-') && *(ptr + 1) == *ptr) {
+        while (is_repeatable(*ptr) && *(ptr + 1) == *ptr) {
             ++consecutive;
             ++ptr;
         }
