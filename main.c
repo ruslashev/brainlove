@@ -35,36 +35,37 @@ static FILE* parse_arguments(int argc, char **argv)
     return input;
 }
 
-static void read_file(FILE *file, char **buffer, size_t *length)
+static char* read_file(FILE *file)
 {
+    char *buffer;
+    size_t length;
+
     if (fseek(file, 0, SEEK_END) == -1)
         error("failed to fseek to end");
 
-    if ((*length = ftell(file)) == -1)
+    if ((length = ftell(file)) == -1)
         error("failed to ftell");
 
     if (fseek(file, 0, SEEK_SET) == -1)
         error("failed to fseek to start");
 
-    *buffer = malloc_check((*length) + 1);
+    buffer = malloc_check(length + 1);
 
-    if (fread(*buffer, 1, *length, file) != *length || ferror(file))
+    if (fread(buffer, 1, length, file) != length || ferror(file))
         error("failed to fread");
 
-    (*buffer)[*length++] = '\0';
+    buffer[length++] = '\0';
+
+    fclose(file);
+
+    return buffer;
 }
 
 int main(int argc, char **argv)
 {
     FILE *input = parse_arguments(argc, argv);
-    char *buffer;
-    size_t buf_len;
+    char *source = read_file(input);
 
-    read_file(input, &buffer, &buf_len);
-    fclose(input);
-
-    printf("read: '%s'\n", buffer);
-
-    free(buffer);
+    free(source);
 }
 
