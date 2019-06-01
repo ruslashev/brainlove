@@ -153,14 +153,30 @@ static enum token_type char_to_token_type(char x)
     }
 }
 
+static void advance_until_valid_token(const char **ptr)
+{
+    do {
+        ++(*ptr);
+    } while (**ptr != '\0' && !is_valid_token(**ptr));
+}
+
+static char next_valid_token(const char *ptr)
+{
+    const char *next = ptr;
+
+    advance_until_valid_token(&next);
+
+    return *next;
+}
+
 static int calculate_num_tokens(const char *buffer)
 {
     int num = 0;
 
-    for (const char *ptr = buffer; *ptr != '\0'; ++ptr)
+    for (const char *ptr = buffer; *ptr != '\0'; advance_until_valid_token(&ptr))
         if (is_valid_token(*ptr)) {
-            while (is_repeatable(*ptr) && *(ptr + 1) == *ptr)
-                ++ptr;
+            while (is_repeatable(*ptr) && next_valid_token(ptr) == *ptr)
+                advance_until_valid_token(&ptr);
 
             ++num;
         }
@@ -174,13 +190,13 @@ static struct token* tokenize_source(const char *buffer)
     struct token *tokens = malloc_check((num_tokens + 1) * sizeof(struct token));
     int consecutive = 1, token_idx = 0;
 
-    for (const char *ptr = buffer; *ptr != '\0'; ++ptr) {
+    for (const char *ptr = buffer; *ptr != '\0'; advance_until_valid_token(&ptr)) {
         if (!is_valid_token(*ptr))
             continue;
 
-        while (is_repeatable(*ptr) && *(ptr + 1) == *ptr) {
+        while (is_repeatable(*ptr) && next_valid_token(ptr) == *ptr) {
             ++consecutive;
-            ++ptr;
+            advance_until_valid_token(&ptr);
         }
 
         tokens[token_idx].type = char_to_token_type(*ptr);
@@ -256,7 +272,7 @@ static void output_assembly(const struct token *tokens, FILE *output)
         "    test r11, r11\n"
         "    jnz beg_%d_%d\n"
         "end_%d_%d:\n";
-    int level = 1;
+    int level = 0;
     int max_depth = count_depth(tokens);
     int *occurence = malloc_check(max_depth * sizeof(int));
 
