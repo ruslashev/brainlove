@@ -3,6 +3,24 @@
 #include <stdlib.h>
 #include <string.h>
 
+enum token_type
+{
+    TOK_ADD = 0,
+    TOK_SUB,
+    TOK_NEXT,
+    TOK_PREV,
+    TOK_OUT,
+    TOK_IN,
+    TOK_BEG,
+    TOK_END,
+};
+
+struct token
+{
+    enum token_type type;
+    int count;
+};
+
 #define print(...) do { printf(__VA_ARGS__); puts(""); } while (0)
 #define error(...) do { \
     printf("error: "); \
@@ -61,11 +79,42 @@ static char* read_file(FILE *file)
     return buffer;
 }
 
+static int is_valid_token(char x)
+{
+    return x == '+' || x == '-' || x == '>' || x == '<'
+        || x == '[' || x == ']' || x == '.' || x == ',';
+}
+
+static int calculate_num_tokens(const char *buffer)
+{
+    int num = 0;
+
+    for (const char *ptr = buffer; *ptr != '\0'; ++ptr)
+        if (is_valid_token(*ptr)) {
+            while ((*ptr == '+' || *ptr == '-') && *(ptr + 1) == *ptr)
+                ++ptr;
+
+            ++num;
+        }
+
+    return num;
+}
+
+static void tokenize_source(const char *buffer)
+{
+    int num_tokens = calculate_num_tokens(buffer);
+
+    printf("num_tokens=%d\n", num_tokens);
+}
+
 int main(int argc, char **argv)
 {
     FILE *input = parse_arguments(argc, argv);
     char *source = read_file(input);
 
+    print("src: '%s'", source);
+
+    tokenize_source(source);
     free(source);
 }
 
