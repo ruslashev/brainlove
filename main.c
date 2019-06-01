@@ -8,9 +8,8 @@
 
 struct arg
 {
-    FILE *input;
+    FILE *input, *output;
     int assembly;
-    char *output;
 };
 
 enum token_type
@@ -71,7 +70,9 @@ static struct arg parse_arguments(int argc, char **argv)
             args.assembly = 1;
             break;
         case 'o':
-            args.output = strdup(options.optarg);
+            args.output = fopen(options.optarg, "w");
+            if (args.output == NULL)
+                error("can't open file '%s' for writing", options.optarg);
             break;
         default:
             die("%s: %s", argv[0], options.errmsg);
@@ -88,11 +89,14 @@ static struct arg parse_arguments(int argc, char **argv)
 
         args.input = fopen(extra, "r");
         if (args.input == NULL)
-            error("can't open file '%s'", extra);
+            error("can't open file '%s' for reading", extra);
     }
 
     if (args.input == NULL)
         args.input = stdin;
+
+    if (args.output == NULL)
+        args.output = stdout;
 
     return args;
 }
@@ -143,8 +147,8 @@ static enum token_type char_to_token_type(char x)
     case '<': return TOK_PREV;
     case '[': return TOK_BEG;
     case ']': return TOK_END;
-    case '.': return TOK_IN;
-    case ',': return TOK_OUT;
+    case '.': return TOK_OUT;
+    case ',': return TOK_IN;
     default: die("char_to_token_type: invalid char '%c'", x);
     }
 }
@@ -199,7 +203,5 @@ int main(int argc, char **argv)
 
     free(tokens);
     free(source);
-    if (args.output)
-        free(args.output);
 }
 
