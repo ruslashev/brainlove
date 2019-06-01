@@ -8,7 +8,7 @@ objsubst = $(objdir)/%.o
 obj = $(src:%=$(objsubst))
 
 test: $(bin)
-	./$(bin) < hello-world.bf
+	./$(bin) examples/hello-world.bf
 
 $(bin): $(obj)
 	@echo "link $@"
