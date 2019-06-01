@@ -24,16 +24,14 @@ section .text
 
 %macro outchar 0
     mov rdi, 1
-    mov rsi, tape
-    add rsi, rbx
+    lea rsi, [tape + rbx]
     mov rax, 1
     syscall
 %endmacro
 
 %macro inchar 0
     mov rdi, 0
-    mov rsi, tape
-    add rsi, rbx
+    lea rsi, [tape + rbx]
     mov rax, 0
     syscall
 %endmacro

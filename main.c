@@ -252,14 +252,12 @@ static void output_assembly(const struct token *tokens, FILE *output)
         "    syscall\n"
         , *inchar =
         "    mov rdi, 0\n"
-        "    mov rsi, tape\n"
-        "    add rsi, rbx\n"
+        "    lea rsi, [tape + rbx]\n"
         "    mov rax, 0\n"
         "    syscall\n"
         , *outchar =
         "    mov rdi, 1\n"
-        "    mov rsi, tape\n"
-        "    add rsi, rbx\n"
+        "    lea rsi, [tape + rbx]\n"
         "    mov rax, 1\n"
         "    syscall\n"
         , *jmp_beg =
@@ -272,9 +270,8 @@ static void output_assembly(const struct token *tokens, FILE *output)
         "    test r11, r11\n"
         "    jnz beg_%d_%d\n"
         "end_%d_%d:\n";
-    int level = 0;
-    int max_depth = count_depth(tokens);
-    int *occurence = malloc_check(max_depth * sizeof(int));
+    int level = 0, max_depth = count_depth(tokens),
+        *occurence = malloc_check(max_depth * sizeof(int));
 
     memset(occurence, 0, max_depth * sizeof(int));
 
