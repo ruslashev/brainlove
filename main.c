@@ -252,13 +252,12 @@ static void output_assembly(const struct token *tokens, FILE *output)
         "    syscall\n"
         , *inchar =
         "    mov rdi, 0\n"
-        "    lea rsi, [tape + rbx]\n"
         "    mov rax, 0\n"
-        "    syscall\n"
         , *outchar =
         "    mov rdi, 1\n"
-        "    lea rsi, [tape + rbx]\n"
         "    mov rax, 1\n"
+        , *syscall =
+        "    lea rsi, [tape + rbx]\n"
         "    syscall\n"
         , *jmp_beg =
         "    movzx r11, byte [tape + rbx]\n"
@@ -271,7 +270,7 @@ static void output_assembly(const struct token *tokens, FILE *output)
         "    jnz beg_%d_%d\n"
         "end_%d_%d:\n";
     int level = 0, max_depth = count_depth(tokens),
-        *occurence = malloc_check(max_depth * sizeof(int));
+        *occurence = malloc_check(max_depth * sizeof(int)), last_io = -1;
 
     memset(occurence, 0, max_depth * sizeof(int));
 
@@ -299,17 +298,27 @@ static void output_assembly(const struct token *tokens, FILE *output)
         case TOK_BEG:
             fprintf(output, jmp_beg, level, occurence[level], level, occurence[level]);
             ++level;
+            last_io = -1;
             break;
         case TOK_END:
             --level;
             fprintf(output, jmp_end, level, occurence[level], level, occurence[level]);
             ++occurence[level];
+            last_io = -1;
             break;
         case TOK_IN:
-            fputs(inchar, output);
+            if (last_io != TOK_IN) {
+                last_io = TOK_IN;
+                fputs(inchar, output);
+            }
+            fputs(syscall, output);
             break;
         case TOK_OUT:
-            fputs(outchar, output);
+            if (last_io != TOK_OUT) {
+                last_io = TOK_OUT;
+                fputs(outchar, output);
+            }
+            fputs(syscall, output);
             break;
         default:
             die("bad token type %d", tokens[i].type);
