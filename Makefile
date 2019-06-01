@@ -25,3 +25,8 @@ clean:
 	@echo "clean $(objdir)"
 	@rm -rf $(objdir)
 
+asm:
+	nasm gen.asm -f elf64 -o gen.o
+	ld -o gen gen.o -m elf_x86_64
+	./gen
+
