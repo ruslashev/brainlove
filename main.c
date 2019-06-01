@@ -200,6 +200,21 @@ static void indent(FILE *output)
     fprintf(output, "    ");
 }
 
+static int count_depth(const struct token *tokens)
+{
+    int depth = 0, max_depth = 0;
+
+    for (int i = 0; tokens[i].type != TOK_EOF; ++i)
+        if (tokens[i].type == TOK_BEG) {
+            ++depth;
+            if (depth > max_depth)
+                max_depth = depth;
+        } else if (tokens[i].type == TOK_END)
+            --depth;
+
+    return max_depth;
+}
+
 static void output_assembly(const struct token *tokens, FILE *output)
 {
     const char *prologue =
@@ -234,14 +249,18 @@ static void output_assembly(const struct token *tokens, FILE *output)
         , *jmp_beg =
         "    movzx r11, byte [tape + rbx]\n"
         "    test r11, r11\n"
-        "    jz end_%d\n"
-        "beg_%d:\n"
+        "    jz end_%d_%d\n"
+        "beg_%d_%d:\n"
         , *jmp_end =
         "    movzx r11, byte [tape + rbx]\n"
         "    test r11, r11\n"
-        "    jnz beg_%d\n"
-        "end_%d:\n";
+        "    jnz beg_%d_%d\n"
+        "end_%d_%d:\n";
     int level = 1;
+    int max_depth = count_depth(tokens);
+    int *occurence = malloc_check(max_depth * sizeof(int));
+
+    memset(occurence, 0, max_depth * sizeof(int));
 
     if (fputs(prologue, output) == EOF)
         error("failed to write prologue");
@@ -265,12 +284,13 @@ static void output_assembly(const struct token *tokens, FILE *output)
             fprintf(output, "sub rbx, %d\n", tokens[i].count);
             break;
         case TOK_BEG:
-            fprintf(output, jmp_beg, level, level);
+            fprintf(output, jmp_beg, level, occurence[level], level, occurence[level]);
             ++level;
             break;
         case TOK_END:
             --level;
-            fprintf(output, jmp_end, level, level);
+            fprintf(output, jmp_end, level, occurence[level], level, occurence[level]);
+            ++occurence[level];
             break;
         case TOK_IN:
             fputs(inchar, output);
@@ -283,6 +303,8 @@ static void output_assembly(const struct token *tokens, FILE *output)
         }
 
     fputs(epilogue, output);
+
+    free(occurence);
 }
 
 int main(int argc, char **argv)
