@@ -37,6 +37,12 @@ struct buffer
     size_t used, allocated;
 };
 
+struct relocation
+{
+    size_t offset;
+    const struct token *from;
+};
+
 #define print(...) do { printf(__VA_ARGS__); puts(""); } while (0)
 #define die(...) do { print(__VA_ARGS__); exit(EXIT_FAILURE); } while (0)
 #define error(...) do { \
@@ -381,6 +387,17 @@ static struct buffer create_buffer()
     return buffer;
 }
 
+static int count_relocations(const struct token *tokens)
+{
+    int relocations = 0;
+
+    for (const struct token *it = tokens; it->type != TOK_EOF; ++it)
+        if (it->type == TOK_BEG || it->type == TOK_END)
+            ++relocations;
+
+    return relocations;
+}
+
 static void emit_qwrd(struct buffer *buffer, uint64_t qword)
 {
     uint8_t *write = buffer->data + buffer->used;
@@ -439,6 +456,7 @@ static void emit_prologue(struct buffer *buffer, uintptr_t tape)
 
 static void emit_add(struct buffer *buffer, uint8_t count)
 {
+    /* addq $count, %(rsi) */
     emit_rexw(buffer);
     emit_byte(buffer, 0x83);
     emit_byte(buffer, 0x06);
@@ -447,6 +465,7 @@ static void emit_add(struct buffer *buffer, uint8_t count)
 
 static void emit_sub(struct buffer *buffer, uint8_t count)
 {
+    /* subq $count, %(rsi) */
     emit_rexw(buffer);
     emit_byte(buffer, 0x83);
     emit_byte(buffer, 0x2e);
@@ -455,6 +474,7 @@ static void emit_sub(struct buffer *buffer, uint8_t count)
 
 static void emit_next(struct buffer *buffer, uint8_t count)
 {
+    /* lea $count(%rsi), %rsi */
     emit_rexw(buffer);
     emit_byte(buffer, 0x8d);
     emit_byte(buffer, 0x76);
@@ -467,15 +487,49 @@ static void emit_prev(struct buffer *buffer, uint8_t count)
 
     offset = ~offset + 1;
 
+    /* lea $count(%rsi), %rsi */
     emit_rexw(buffer);
     emit_byte(buffer, 0x8d);
     emit_byte(buffer, 0x76);
     emit_byte(buffer, offset);
 }
 
+static void emit_test_rsi(struct buffer *buffer)
+{
+    /* mov (%rsi), %r11 */
+    emit_byte(buffer, 0x4c);
+    emit_byte(buffer, 0x8b);
+    emit_byte(buffer, 0x1e);
+
+    /* test %r11, %r11 */
+    emit_byte(buffer, 0x4d);
+    emit_byte(buffer, 0x85);
+    emit_byte(buffer, 0xdb);
+}
+
+static void emit_jmp_beg(struct buffer *buffer)
+{
+    emit_test_rsi(buffer);
+
+    /* je 0x00 */
+    emit_byte(buffer, 0x74);
+    emit_byte(buffer, 0x00);
+}
+
+static void emit_jmp_end(struct buffer *buffer)
+{
+    emit_test_rsi(buffer);
+
+    /* jne 0x00 */
+    emit_byte(buffer, 0x75);
+    emit_byte(buffer, 0x00);
+}
+
 static struct buffer compile_objects(const struct token *tokens, uintptr_t bss, uintptr_t text)
 {
     struct buffer buffer = create_buffer();
+    int num_relocations = count_relocations(tokens), relocation_idx = 0;
+    struct relocation *relocations = malloc_check(num_relocations * sizeof(struct relocation));
 
     emit_prologue(&buffer, bss);
 
@@ -493,9 +547,39 @@ static struct buffer compile_objects(const struct token *tokens, uintptr_t bss, 
         case TOK_PREV:
             emit_prev(&buffer, it->count);
             break;
+        case TOK_BEG:
+            emit_jmp_beg(&buffer);
+            relocations[relocation_idx].offset = buffer.used - 1;
+            relocations[relocation_idx].from = it;
+            ++relocation_idx;
+            break;
+        case TOK_END:
+            emit_jmp_end(&buffer);
+            relocations[relocation_idx].offset = buffer.used - 1;
+            relocations[relocation_idx].from = it;
+            ++relocation_idx;
+            break;
         default:
             die("bad token type %d", it->type);
         }
+
+    for (int i = 0; i < num_relocations; ++i) {
+        const struct relocation *this = &relocations[i], *target = NULL;
+        int target_type = this->from->type == TOK_BEG ? TOK_END : TOK_BEG;
+
+        for (int j = 0; j < num_relocations; ++j)
+            if (relocations[j].from->level == this->from->level
+                    && relocations[j].from->occurence == this->from->occurence
+                    && relocations[j].from->type == target_type)
+                target = &relocations[j];
+
+        if (target == NULL)
+            die("no target relocation found");
+
+        buffer.data[this->offset] = target->offset + 1;
+    }
+
+    free(relocations);
 
     return buffer;
 }
