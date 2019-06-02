@@ -441,7 +441,36 @@ static void emit_add(struct buffer *buffer, uint8_t count)
 {
     emit_rexw(buffer);
     emit_byte(buffer, 0x83);
+    emit_byte(buffer, 0x06);
     emit_byte(buffer, count);
+}
+
+static void emit_sub(struct buffer *buffer, uint8_t count)
+{
+    emit_rexw(buffer);
+    emit_byte(buffer, 0x83);
+    emit_byte(buffer, 0x2e);
+    emit_byte(buffer, count);
+}
+
+static void emit_next(struct buffer *buffer, uint8_t count)
+{
+    emit_rexw(buffer);
+    emit_byte(buffer, 0x8d);
+    emit_byte(buffer, 0x76);
+    emit_byte(buffer, 8 * count);
+}
+
+static void emit_prev(struct buffer *buffer, uint8_t count)
+{
+    uint8_t offset = 8 * count;
+
+    offset = ~offset + 1;
+
+    emit_rexw(buffer);
+    emit_byte(buffer, 0x8d);
+    emit_byte(buffer, 0x76);
+    emit_byte(buffer, offset);
 }
 
 static struct buffer compile_objects(const struct token *tokens, uintptr_t bss, uintptr_t text)
@@ -454,6 +483,15 @@ static struct buffer compile_objects(const struct token *tokens, uintptr_t bss, 
         switch (it->type) {
         case TOK_ADD:
             emit_add(&buffer, it->count);
+            break;
+        case TOK_SUB:
+            emit_sub(&buffer, it->count);
+            break;
+        case TOK_NEXT:
+            emit_next(&buffer, it->count);
+            break;
+        case TOK_PREV:
+            emit_prev(&buffer, it->count);
             break;
         default:
             die("bad token type %d", it->type);
