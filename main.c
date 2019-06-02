@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <unistd.h>
+#include "elf.h"
 #define OPTPARSE_IMPLEMENTATION
 #define OPTPARSE_API static
 #include "optparse.h"
@@ -633,12 +634,53 @@ static struct buffer compile_objects(const struct token *tokens, uintptr_t bss, 
     return buffer;
 }
 
+static struct buffer link_elf(struct buffer *objects)
+{
+    struct buffer elf = create_buffer();
+    uintptr_t entry = 0x400000, ph_offset = 64, sh_offset = 728;
+    struct elf64_ehdr elf_header = {
+        .e_ident = {
+            [ei_mag0] = '\x7f',
+            [ei_mag1] = 'E',
+            [ei_mag2] = 'L',
+            [ei_mag3] = 'F',
+            [ei_class] = ELFCLASS64,
+            [ei_data] = ELFDATA2LSB,
+            [ei_version] = EV_CURRENT,
+            [ei_osabi] = ELFOSABI_SYSV,
+            [ei_abiversion] = 0,
+            [ei_pad] = 0,
+            [10] = 0,
+            [11] = 0,
+            [12] = 0,
+            [13] = 0,
+            [14] = 0,
+            [ei_nident - 1] = 0,
+        },
+        .e_type = ET_EXEC,
+        .e_machine = EM_X86_64,
+        .e_version = EV_CURRENT,
+        .e_entry = entry,
+        .e_phoff = ph_offset,
+        .e_shoff = sh_offset,
+        .e_flags = 0,
+        .e_ehsize = sizeof(struct elf64_ehdr),
+        .e_phentsize = sizeof(struct elf64_phdr),
+        .e_phnum = 2,
+        .e_shentsize = sizeof(struct elf64_shdr),
+        .e_shnum = 6,
+        .e_shstrndx = SHN_UNDEF,
+    };
+
+    return elf;
+}
+
 int main(int argc, char **argv)
 {
     struct arg args = parse_arguments(argc, argv);
     char *source = read_file(args.input);
     struct token *tokens = tokenize_source(source);
-    struct buffer objects;
+    struct buffer objects, elf;
 
     parse_levels(tokens);
 
@@ -651,6 +693,8 @@ int main(int argc, char **argv)
         die("won't dump binary into terminal. pipe output or specify file with -o flag.");
 
     objects = compile_objects(tokens, 0, 0);
+
+    elf = link_elf(&objects);
 
     free(objects.data);
 
