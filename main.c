@@ -405,10 +405,15 @@ static void emit_byte(struct buffer *buffer, uint8_t byte)
     ++buffer->used;
 }
 
+static void emit_rexw(struct buffer *buffer)
+{
+    emit_byte(buffer, 0x48);
+}
+
 static void emit_prologue(struct buffer *buffer, uintptr_t tape)
 {
     /* movabs tape, %rsi */
-    emit_byte(buffer, 0x48); /* rex */
+    emit_rexw(buffer);
     emit_byte(buffer, 0xbe);
     emit_qwrd(buffer, tape);
 
@@ -417,11 +422,27 @@ static void emit_prologue(struct buffer *buffer, uintptr_t tape)
     emit_word(buffer, 0x1);
 }
 
+static void emit_add(struct buffer *buffer, uint8_t count)
+{
+    emit_rexw(buffer);
+    emit_byte(buffer, 0x83);
+    emit_byte(buffer, count);
+}
+
 static struct buffer compile_objects(const struct token *tokens, uintptr_t bss, uintptr_t text)
 {
     struct buffer buffer = create_buffer();
 
     emit_prologue(&buffer, bss);
+
+    for (const struct token *it = tokens; it->type != TOK_EOF; ++it)
+        switch (it->type) {
+        case TOK_ADD:
+            emit_add(&buffer, it->count);
+            break;
+        default:
+            die("bad token type %d", it->type);
+        }
 
     return buffer;
 }
