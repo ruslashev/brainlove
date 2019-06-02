@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <unistd.h>
 #define OPTPARSE_IMPLEMENTATION
 #define OPTPARSE_API static
 #include "optparse.h"
@@ -646,6 +647,9 @@ int main(int argc, char **argv)
         goto cleanup;
     }
 
+    if (isatty(fileno(args.output)))
+        die("won't dump binary into terminal. pipe output or specify file with -o flag.");
+
     objects = compile_objects(tokens, 0, 0);
 
     free(objects.data);
@@ -653,5 +657,8 @@ int main(int argc, char **argv)
 cleanup:
     free(tokens);
     free(source);
+
+    if (args.output != stdout)
+        fclose(args.output);
 }
 
