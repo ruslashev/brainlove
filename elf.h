@@ -119,20 +119,6 @@ struct elf64_ehdr
     elf64_half e_shstrndx;
 };
 
-struct elf64_shdr
-{
-    elf64_word sh_name;
-    elf64_word sh_type;
-    elf64_xword sh_flags;
-    elf64_addr sh_addr;
-    elf64_off sh_offset;
-    elf64_xword sh_size;
-    elf64_word sh_link;
-    elf64_word sh_info;
-    elf64_xword sh_addralign;
-    elf64_xword sh_entsize;
-};
-
 struct elf64_sym
 {
     elf64_word st_name;

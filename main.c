@@ -641,8 +641,7 @@ static struct buffer compile_objects(const struct token *tokens, uintptr_t bss, 
 static struct buffer link_elf(struct buffer *objects)
 {
     struct buffer elf = create_buffer();
-    uintptr_t entry = 0x400000, bss_vaddr = 0x600000, ph_offset = 64, sh_offset = 728,
-              text_sh_foffset = 176, bss_sh_foffset = 368, text_sh_fsize = 100, bss_sh_fsize = 100;
+    uintptr_t entry = 0x400000, bss_vaddr = 0x600000;
     struct elf64_ehdr header = {
         .e_ident = {
             [ei_mag0] = '\x7f',
@@ -666,56 +665,17 @@ static struct buffer link_elf(struct buffer *objects)
         .e_machine = EM_X86_64,
         .e_version = EV_CURRENT,
         .e_entry = entry,
-        .e_phoff = ph_offset,
-        .e_shoff = sh_offset,
+        .e_phoff = sizeof(struct elf64_ehdr),
+        .e_shoff = 0,
         .e_flags = 0,
         .e_ehsize = sizeof(struct elf64_ehdr),
         .e_phentsize = sizeof(struct elf64_phdr),
         .e_phnum = 2,
-        .e_shentsize = sizeof(struct elf64_shdr),
-        .e_shnum = 3,
+        .e_shentsize = 0,
+        .e_shnum = 0,
         .e_shstrndx = SHN_UNDEF,
     };
-    struct elf64_shdr null = {
-        .sh_name = 0,
-        .sh_type = SHT_NULL,
-        .sh_flags = 0,
-        .sh_addr = 0,
-        .sh_offset = 0,
-        .sh_size = 0,
-        .sh_link = 0,
-        .sh_info = 0,
-        .sh_addralign = 0,
-        .sh_entsize = 0,
-    }, text_sh = {
-        .sh_name = 0 + 1,
-        .sh_type = SHT_PROGBITS,
-        .sh_flags = SHF_ALLOC | SHF_EXECINSTR,
-        .sh_addr = entry,
-        .sh_offset = text_sh_foffset,
-        .sh_size = text_sh_fsize,
-        .sh_link = 0,
-        .sh_info = 0,
-        .sh_addralign = 16,
-        .sh_entsize = 0,
-    }, bss_sh = {
-        .sh_name = 0 + sizeof(".text"),
-        .sh_type = SHT_NOBITS,
-        .sh_flags = SHF_WRITE | SHF_ALLOC,
-        .sh_addr = bss_vaddr,
-        .sh_offset = bss_sh_foffset,
-        .sh_size = bss_sh_fsize,
-        .sh_link = 0,
-        .sh_info = 0,
-        .sh_addralign = 4,
-        .sh_entsize = 0,
-    };
-    const char *string_table[] = {
-        0,
-        ".text",
-        ".bss"
-    };
-    struct elf64_phdr text_ph = {
+    struct elf64_phdr text = {
         .p_type = PT_LOAD,
         .p_flags = PF_X | PF_R,
         .p_offset = 0,
@@ -724,7 +684,7 @@ static struct buffer link_elf(struct buffer *objects)
         .p_filesz = 0,
         .p_memsz = 0,
         .p_align = 0x200000,
-    }, bss_ph = {
+    }, bss = {
         .p_type = PT_LOAD,
         .p_flags = PF_W | PF_R,
         .p_offset = 0,
@@ -734,8 +694,15 @@ static struct buffer link_elf(struct buffer *objects)
         .p_memsz = 0,
         .p_align = 0x200000,
     };
+    const char *string_table[] = {
+        0,
+        ".text",
+        ".bss"
+    };
 
     emit_bytes(&elf, (uint8_t*)&header, sizeof(header));
+    emit_bytes(&elf, (uint8_t*)&text, sizeof(text));
+    emit_bytes(&elf, (uint8_t*)&bss, sizeof(bss));
 
     return elf;
 }
