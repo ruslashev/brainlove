@@ -7,44 +7,42 @@ tape:
 section .text
 
 %macro bf_add 1
-    add byte [tape + rbx], %1
+    add byte [rsi], %1
 %endmacro
 
 %macro bf_sub 1
-    sub byte [tape + rbx], %1
+    sub byte [rsi], %1
 %endmacro
 
 %macro bf_next 1
-    add rbx, %1
+    add rsi, %1
 %endmacro
 
 %macro bf_prev 1
-    sub rbx, %1
+    sub rsi, %1
 %endmacro
 
 %macro outchar 0
     mov rdi, 1
-    lea rsi, [tape + rbx]
     mov rax, 1
     syscall
 %endmacro
 
 %macro inchar 0
     mov rdi, 0
-    lea rsi, [tape + rbx]
     mov rax, 0
     syscall
 %endmacro
 
 %macro jmp_beg 1
-    movzx r11, byte [tape + rbx]
+    movzx r11, byte [rsi]
     test r11, r11
     jz end_%1
 beg_%1:
 %endmacro
 
 %macro jmp_end 1
-    movzx r11, byte [tape + rbx]
+    movzx r11, byte [rsi]
     test r11, r11
     jnz beg_%1
 end_%1:
@@ -57,7 +55,7 @@ end_%1:
 %endmacro
 
 _start:
-    xor rbx, rbx
+    mov rsi, tape
     mov rdx, 1
 
     bf_add 10

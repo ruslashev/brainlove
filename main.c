@@ -242,7 +242,7 @@ static void output_assembly(const struct token *tokens, FILE *output)
         "\n"
         "section .text\n"
         "_start:\n"
-        "    xor rbx, rbx\n"
+        "    mov rsi, tape\n"
         "    mov rdx, 1\n"
         "\n"
         , *epilogue =
@@ -257,15 +257,14 @@ static void output_assembly(const struct token *tokens, FILE *output)
         "    mov rdi, 1\n"
         "    mov rax, 1\n"
         , *syscall =
-        "    lea rsi, [tape + rbx]\n"
         "    syscall\n"
         , *jmp_beg =
-        "    movzx r11, byte [tape + rbx]\n"
+        "    movzx r11, byte [rsi]\n"
         "    test r11, r11\n"
         "    jz end_%d_%d\n"
         "beg_%d_%d:\n"
         , *jmp_end =
-        "    movzx r11, byte [tape + rbx]\n"
+        "    movzx r11, byte [rsi]\n"
         "    test r11, r11\n"
         "    jnz beg_%d_%d\n"
         "end_%d_%d:\n";
@@ -281,19 +280,19 @@ static void output_assembly(const struct token *tokens, FILE *output)
         switch (tokens[i].type) {
         case TOK_ADD:
             indent(output);
-            fprintf(output, "add byte [tape + rbx], %d\n", tokens[i].count);
+            fprintf(output, "add byte [rsi], %d\n", tokens[i].count);
             break;
         case TOK_SUB:
             indent(output);
-            fprintf(output, "sub byte [tape + rbx], %d\n", tokens[i].count);
+            fprintf(output, "sub byte [rsi], %d\n", tokens[i].count);
             break;
         case TOK_NEXT:
             indent(output);
-            fprintf(output, "add rbx, %d\n", tokens[i].count);
+            fprintf(output, "add rsi, %d\n", tokens[i].count);
             break;
         case TOK_PREV:
             indent(output);
-            fprintf(output, "sub rbx, %d\n", tokens[i].count);
+            fprintf(output, "sub rsi, %d\n", tokens[i].count);
             break;
         case TOK_BEG:
             fprintf(output, jmp_beg, level, occurence[level], level, occurence[level]);
