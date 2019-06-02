@@ -267,7 +267,15 @@ static void output_assembly(const struct token *tokens, FILE *output)
         "    mov r11, [rsi]\n"
         "    test r11, r11\n"
         "    jnz beg_%d_%d\n"
-        "end_%d_%d:\n";
+        "end_%d_%d:\n"
+        , *add =
+        "add qword [rsi], %d\n"
+        , *sub =
+        "sub qword [rsi], %d\n"
+        , *next =
+        "lea rsi, [rsi + %d * 8]\n"
+        , *prev =
+        "lea rsi, [rsi - %d * 8]\n";
     int level = 0, max_depth = count_depth(tokens),
         *occurence = malloc_check(max_depth * sizeof(int)), last_io = -1;
 
@@ -280,19 +288,19 @@ static void output_assembly(const struct token *tokens, FILE *output)
         switch (tokens[i].type) {
         case TOK_ADD:
             indent(output);
-            fprintf(output, "add qword [rsi], %d\n", tokens[i].count);
+            fprintf(output, add, tokens[i].count);
             break;
         case TOK_SUB:
             indent(output);
-            fprintf(output, "sub qword [rsi], %d\n", tokens[i].count);
+            fprintf(output, sub, tokens[i].count);
             break;
         case TOK_NEXT:
             indent(output);
-            fprintf(output, "lea rsi, [rsi + %d * 8]\n", tokens[i].count);
+            fprintf(output, next, tokens[i].count);
             break;
         case TOK_PREV:
             indent(output);
-            fprintf(output, "lea rsi, [rsi - %d * 8]\n", tokens[i].count);
+            fprintf(output, prev, tokens[i].count);
             break;
         case TOK_BEG:
             fprintf(output, jmp_beg, level, occurence[level], level, occurence[level]);
