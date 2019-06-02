@@ -28,8 +28,7 @@ enum token_type
 
 struct token
 {
-    int type;
-    int count;
+    int type, count, level, occurence;
 };
 
 struct buffer
@@ -208,6 +207,8 @@ static struct token* tokenize_source(const char *buffer)
 
         tokens[token_idx].type = char_to_token_type(*ptr);
         tokens[token_idx].count = consecutive;
+        tokens[token_idx].level = 0;
+        tokens[token_idx].occurence = 0;
         ++token_idx;
 
         consecutive = 1;
@@ -231,6 +232,28 @@ static int count_depth(const struct token *tokens)
             --depth;
 
     return max_depth;
+}
+
+static void parse_levels(struct token *tokens)
+{
+    int level = 0, max_depth = count_depth(tokens),
+        *occurence = malloc_check(max_depth * sizeof(int));
+
+    memset(occurence, 0, max_depth * sizeof(int));
+
+    for (struct token *it = tokens; it->type != TOK_EOF; ++it)
+        if (it->type == TOK_BEG) {
+            it->level = level;
+            it->occurence = occurence[level];
+            ++level;
+        } else if (it->type == TOK_END) {
+            --level;
+            it->level = level;
+            it->occurence = occurence[level];
+            ++occurence[level];
+        }
+
+    free(occurence);
 }
 
 static void output_assembly(const struct token *tokens, FILE *output)
@@ -278,60 +301,52 @@ static void output_assembly(const struct token *tokens, FILE *output)
         "    lea rsi, [rsi + %d * 8]\n"
         , *prev =
         "    lea rsi, [rsi - %d * 8]\n";
-    int level = 0, max_depth = count_depth(tokens),
-        *occurence = malloc_check(max_depth * sizeof(int)), last_io = -1;
-
-    memset(occurence, 0, max_depth * sizeof(int));
+    int last_io = -1;
 
     if (fputs(prologue, output) == EOF)
         error("failed to write prologue");
 
-    for (int i = 0; tokens[i].type != TOK_EOF; ++i)
-        switch (tokens[i].type) {
+    for (const struct token *it = tokens; it->type != TOK_EOF; ++it)
+        switch (it->type) {
         case TOK_ADD:
-            fprintf(output, add, tokens[i].count);
+            fprintf(output, add, it->count);
             break;
         case TOK_SUB:
-            fprintf(output, sub, tokens[i].count);
+            fprintf(output, sub, it->count);
             break;
         case TOK_NEXT:
-            fprintf(output, next, tokens[i].count);
+            fprintf(output, next, it->count);
             break;
         case TOK_PREV:
-            fprintf(output, prev, tokens[i].count);
+            fprintf(output, prev, it->count);
             break;
         case TOK_BEG:
-            fprintf(output, jmp_beg, level, occurence[level], level, occurence[level]);
-            ++level;
+            fprintf(output, jmp_beg, it->level, it->occurence, it->level, it->occurence);
             last_io = -1;
             break;
         case TOK_END:
-            --level;
-            fprintf(output, jmp_end, level, occurence[level], level, occurence[level]);
-            ++occurence[level];
+            fprintf(output, jmp_end, it->level, it->occurence, it->level, it->occurence);
             last_io = -1;
             break;
         case TOK_IN:
-            if (last_io != TOK_IN) {
-                last_io = TOK_IN;
+            if (last_io != it->type) {
+                last_io = it->type;
                 fputs(inchar, output);
             }
             fputs(syscall, output);
             break;
         case TOK_OUT:
-            if (last_io != TOK_OUT) {
-                last_io = TOK_OUT;
+            if (last_io != it->type) {
+                last_io = it->type;
                 fputs(outchar, output);
             }
             fputs(syscall, output);
             break;
         default:
-            die("bad token type %d", tokens[i].type);
+            die("bad token type %d", it->type);
         }
 
     fputs(epilogue, output);
-
-    free(occurence);
 }
 
 static void expand_buffer_memory(struct buffer *buffer)
@@ -453,6 +468,8 @@ int main(int argc, char **argv)
     char *source = read_file(args.input);
     struct token *tokens = tokenize_source(source);
     struct buffer objects;
+
+    parse_levels(tokens);
 
     if (args.assembly) {
         output_assembly(tokens, args.output);
