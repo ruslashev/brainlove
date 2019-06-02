@@ -1,8 +1,8 @@
 global _start
 
-section .data
+section .bss
 tape:
-    times 30000 db 0
+    resb 30000
 
 section .text
 

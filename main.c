@@ -236,9 +236,9 @@ static void output_assembly(const struct token *tokens, FILE *output)
     const char *prologue =
         "global _start\n"
         "\n"
-        "section .data\n"
+        "section .bss\n"
         "tape:\n"
-        "    times 30000 db 0\n"
+        "    resb 30000\n"
         "\n"
         "section .text\n"
         "_start:\n"
