@@ -562,6 +562,19 @@ static void emit_syscall(struct buffer *buffer)
     emit_byte(buffer, 0x05);
 }
 
+static void emit_epilogue(struct buffer *buffer)
+{
+    /* mov $0x0, %edi */
+    emit_byte(buffer, 0xbf);
+    emit_dword(buffer, 0x0);
+
+    /* mov $0x3c, %eax */
+    emit_byte(buffer, 0xb8);
+    emit_dword(buffer, 60);
+
+    emit_syscall(buffer);
+}
+
 static struct buffer compile_objects(const struct token *tokens, uintptr_t bss, uintptr_t text)
 {
     struct buffer buffer = create_buffer();
@@ -616,6 +629,8 @@ static struct buffer compile_objects(const struct token *tokens, uintptr_t bss, 
         default:
             die("bad token type %d", it->type);
         }
+
+    emit_epilogue(&buffer);
 
     for (int i = 0; i < num_relocations; ++i) {
         const struct relocation *this = &relocations[i], *target = NULL;
