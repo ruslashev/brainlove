@@ -414,8 +414,6 @@ static void emit_qword(struct buffer *buffer, uint64_t qword)
     *(write + 5) = (qword & 0x0000000000ff0000) >> (2 * 8);
     *(write + 6) = (qword & 0x000000000000ff00) >> (1 * 8);
     *(write + 7) = (qword & 0x00000000000000ff) >> (0 * 8);
-
-    buffer->used += sizeof(uint64_t);
 }
 
 static void emit_dword(struct buffer *buffer, uint32_t dword)
@@ -428,17 +426,23 @@ static void emit_dword(struct buffer *buffer, uint32_t dword)
     *(write + 1) = (dword & 0x00ff0000) >> (2 * 8);
     *(write + 2) = (dword & 0x0000ff00) >> (1 * 8);
     *(write + 3) = (dword & 0x000000ff) >> (0 * 8);
-
-    buffer->used += sizeof(uint32_t);
 }
 
 static void emit_byte(struct buffer *buffer, uint8_t byte)
 {
     reserve_buffer_memory(buffer, sizeof(uint8_t));
 
-    *(buffer->data + buffer->used) = byte;
+    *(buffer->data + buffer->used - 1) = byte;
+}
 
-    ++buffer->used;
+static void emit_bytes(struct buffer *buffer, const uint8_t *bytes, size_t length)
+{
+    uint8_t *write = buffer->data + buffer->used;
+
+    reserve_buffer_memory(buffer, length);
+
+    for (size_t i = 0; i < length; ++i)
+        *(write + i) = bytes[i];
 }
 
 static void emit_rexw(struct buffer *buffer)
