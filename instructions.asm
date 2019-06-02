@@ -2,24 +2,24 @@ global _start
 
 section .bss
 tape:
-    resb 30000
+    resb 30000 * 8
 
 section .text
 
 %macro bf_add 1
-    add byte [rsi], %1
+    add qword [rsi], %1
 %endmacro
 
 %macro bf_sub 1
-    sub byte [rsi], %1
+    sub qword [rsi], %1
 %endmacro
 
 %macro bf_next 1
-    add rsi, %1
+    lea rsi, [rsi + %1 * 8]
 %endmacro
 
 %macro bf_prev 1
-    sub rsi, %1
+    lea rsi, [rsi - %1 * 8]
 %endmacro
 
 %macro outchar 0
@@ -35,14 +35,14 @@ section .text
 %endmacro
 
 %macro jmp_beg 1
-    movzx r11, byte [rsi]
+    mov r11, [rsi]
     test r11, r11
     jz end_%1
 beg_%1:
 %endmacro
 
 %macro jmp_end 1
-    movzx r11, byte [rsi]
+    mov r11, [rsi]
     test r11, r11
     jnz beg_%1
 end_%1:
