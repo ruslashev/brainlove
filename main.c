@@ -656,7 +656,7 @@ static struct buffer compile_objects(const struct token *tokens, uintptr_t bss, 
 static struct buffer link_elf(struct buffer *objects)
 {
     struct buffer elf = create_buffer();
-    uintptr_t entry = 0x400000, bss_vaddr = 0x600000;
+    uintptr_t text_vaddr = 1 * 0x1000, bss_vaddr = 0x10000;
     struct elf64_ehdr header = {
         .e_ident = {
             [ei_mag0] = '\x7f',
@@ -679,7 +679,7 @@ static struct buffer link_elf(struct buffer *objects)
         .e_type = ET_EXEC,
         .e_machine = EM_X86_64,
         .e_version = EV_CURRENT,
-        .e_entry = entry,
+        .e_entry = text_vaddr + sizeof(struct elf64_ehdr) + 2 * sizeof(struct elf64_phdr),
         .e_phoff = sizeof(struct elf64_ehdr),
         .e_shoff = 0,
         .e_flags = 0,
@@ -694,11 +694,11 @@ static struct buffer link_elf(struct buffer *objects)
         .p_type = PT_LOAD,
         .p_flags = PF_X | PF_R,
         .p_offset = 0,
-        .p_vaddr = entry,
+        .p_vaddr = text_vaddr,
         .p_paddr = 0,
-        .p_filesz = 0,
-        .p_memsz = 0,
-        .p_align = 0x200000,
+        .p_filesz = objects->used,
+        .p_memsz = objects->used,
+        .p_align = 0x1000,
     }, bss = {
         .p_type = PT_LOAD,
         .p_flags = PF_W | PF_R,
@@ -706,18 +706,14 @@ static struct buffer link_elf(struct buffer *objects)
         .p_vaddr = bss_vaddr,
         .p_paddr = 0,
         .p_filesz = 0,
-        .p_memsz = 0,
-        .p_align = 0x200000,
-    };
-    const char *string_table[] = {
-        0,
-        ".text",
-        ".bss"
+        .p_memsz = 30000 * 8,
+        .p_align = 0x1000,
     };
 
     emit_bytes(&elf, (uint8_t*)&header, sizeof(header));
     emit_bytes(&elf, (uint8_t*)&text, sizeof(text));
     emit_bytes(&elf, (uint8_t*)&bss, sizeof(bss));
+    emit_bytes(&elf, objects->data, objects->used);
 
     return elf;
 }
