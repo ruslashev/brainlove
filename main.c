@@ -643,7 +643,7 @@ static struct buffer link_elf(struct buffer *objects)
     struct buffer elf = create_buffer();
     uintptr_t entry = 0x400000, bss_vaddr = 0x600000, ph_offset = 64, sh_offset = 728,
               text_sh_foffset = 176, bss_sh_foffset = 368, text_sh_fsize = 100, bss_sh_fsize = 100;
-    struct elf64_ehdr elf_header = {
+    struct elf64_ehdr header = {
         .e_ident = {
             [ei_mag0] = '\x7f',
             [ei_mag1] = 'E',
@@ -735,7 +735,15 @@ static struct buffer link_elf(struct buffer *objects)
         .p_align = 0x200000,
     };
 
+    emit_bytes(&elf, (uint8_t*)&header, sizeof(header));
+
     return elf;
+}
+
+static void write_buffer_to_file(const struct buffer *buffer, FILE *output)
+{
+    if (fwrite(buffer->data, 1, buffer->used, output) != buffer->used)
+        error("failed to write");
 }
 
 int main(int argc, char **argv)
@@ -759,7 +767,10 @@ int main(int argc, char **argv)
 
     elf = link_elf(&objects);
 
+    write_buffer_to_file(&elf, args.output);
+
     free(objects.data);
+    free(elf.data);
 
 cleanup:
     free(tokens);
