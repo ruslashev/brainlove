@@ -1,6 +1,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #define OPTPARSE_IMPLEMENTATION
 #define OPTPARSE_API static
@@ -29,6 +30,12 @@ struct token
 {
     int type;
     int count;
+};
+
+struct buffer
+{
+    uint8_t *data, *write;
+    size_t used, allocated;
 };
 
 #define print(...) do { printf(__VA_ARGS__); puts(""); } while (0)
@@ -327,16 +334,73 @@ static void output_assembly(const struct token *tokens, FILE *output)
     free(occurence);
 }
 
+static void expand_buffer_memory(struct buffer *buffer)
+{
+    uint8_t *new;
+
+    buffer->allocated += 4096;
+
+    new = realloc(buffer->data, buffer->allocated);
+    if (new == NULL)
+        error("failed to expand buffer");
+
+    buffer->data = new;
+}
+
+static void reserve_buffer_memory(struct buffer *buffer, size_t by)
+{
+    buffer->used += by;
+
+    if (buffer->used >= buffer->allocated)
+        expand_buffer_memory(buffer);
+}
+
+static void emit_qword(struct buffer *buffer, uint64_t qword)
+{
+    reserve_buffer_memory(buffer, sizeof(uint64_t));
+
+    *(buffer->write + 0) = (qword & 0xff00000000000000) >> (7 * 8);
+    *(buffer->write + 1) = (qword & 0x00ff000000000000) >> (6 * 8);
+    *(buffer->write + 2) = (qword & 0x0000ff0000000000) >> (5 * 8);
+    *(buffer->write + 3) = (qword & 0x000000ff00000000) >> (4 * 8);
+    *(buffer->write + 4) = (qword & 0x00000000ff000000) >> (3 * 8);
+    *(buffer->write + 5) = (qword & 0x0000000000ff0000) >> (2 * 8);
+    *(buffer->write + 6) = (qword & 0x000000000000ff00) >> (1 * 8);
+    *(buffer->write + 7) = (qword & 0x00000000000000ff) >> (0 * 8);
+
+    buffer->write += 8;
+}
+
+static void emit_byte(struct buffer *buffer, uint8_t byte)
+{
+    reserve_buffer_memory(buffer, sizeof(uint8_t));
+
+    *buffer->write = byte;
+
+    ++buffer->write;
+}
+
+static void emit_prologue(const struct token *tokens, uintptr_t bss, uintptr_t text)
+{
+}
+
+static struct buffer compile_objects(const struct token *tokens, uintptr_t bss, uintptr_t text)
+{
+}
+
 int main(int argc, char **argv)
 {
     struct arg args = parse_arguments(argc, argv);
     char *source = read_file(args.input);
     struct token *tokens = tokenize_source(source);
+    struct buffer objects;
 
     if (args.assembly) {
         output_assembly(tokens, args.output);
         goto cleanup;
     }
+
+    objects = compile_objects(tokens, 0, 0);
 
 cleanup:
     free(tokens);
