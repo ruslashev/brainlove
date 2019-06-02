@@ -211,11 +211,6 @@ static struct token* tokenize_source(const char *buffer)
     return tokens;
 }
 
-static void indent(FILE *output)
-{
-    fprintf(output, "    ");
-}
-
 static int count_depth(const struct token *tokens)
 {
     int depth = 0, max_depth = 0;
@@ -269,13 +264,13 @@ static void output_assembly(const struct token *tokens, FILE *output)
         "    jnz beg_%d_%d\n"
         "end_%d_%d:\n"
         , *add =
-        "add qword [rsi], %d\n"
+        "    add qword [rsi], %d\n"
         , *sub =
-        "sub qword [rsi], %d\n"
+        "    sub qword [rsi], %d\n"
         , *next =
-        "lea rsi, [rsi + %d * 8]\n"
+        "    lea rsi, [rsi + %d * 8]\n"
         , *prev =
-        "lea rsi, [rsi - %d * 8]\n";
+        "    lea rsi, [rsi - %d * 8]\n";
     int level = 0, max_depth = count_depth(tokens),
         *occurence = malloc_check(max_depth * sizeof(int)), last_io = -1;
 
@@ -287,19 +282,15 @@ static void output_assembly(const struct token *tokens, FILE *output)
     for (int i = 0; tokens[i].type != TOK_EOF; ++i)
         switch (tokens[i].type) {
         case TOK_ADD:
-            indent(output);
             fprintf(output, add, tokens[i].count);
             break;
         case TOK_SUB:
-            indent(output);
             fprintf(output, sub, tokens[i].count);
             break;
         case TOK_NEXT:
-            indent(output);
             fprintf(output, next, tokens[i].count);
             break;
         case TOK_PREV:
-            indent(output);
             fprintf(output, prev, tokens[i].count);
             break;
         case TOK_BEG:
