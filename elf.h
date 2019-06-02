@@ -119,16 +119,6 @@ struct elf64_ehdr
     elf64_half e_shstrndx;
 };
 
-struct elf64_sym
-{
-    elf64_word st_name;
-    unsigned char st_info;
-    unsigned char st_other;
-    elf64_half st_shndx;
-    elf64_addr st_value;
-    elf64_xword st_size;
-};
-
 struct elf64_phdr
 {
     elf64_word p_type;
