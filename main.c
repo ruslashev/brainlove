@@ -334,17 +334,17 @@ static void output_assembly(const struct token *tokens, FILE *output)
             fprintf(output, jmp_end, it->level, it->occurence, it->level, it->occurence);
             last_io = -1;
             break;
-        case TOK_IN:
-            if (last_io != it->type) {
-                last_io = it->type;
-                fputs(inchar, output);
-            }
-            fputs(syscall, output);
-            break;
         case TOK_OUT:
             if (last_io != it->type) {
                 last_io = it->type;
                 fputs(outchar, output);
+            }
+            fputs(syscall, output);
+            break;
+        case TOK_IN:
+            if (last_io != it->type) {
+                last_io = it->type;
+                fputs(inchar, output);
             }
             fputs(syscall, output);
             break;
@@ -398,7 +398,7 @@ static int count_relocations(const struct token *tokens)
     return relocations;
 }
 
-static void emit_qwrd(struct buffer *buffer, uint64_t qword)
+static void emit_qword(struct buffer *buffer, uint64_t qword)
 {
     uint8_t *write = buffer->data + buffer->used;
 
@@ -416,16 +416,18 @@ static void emit_qwrd(struct buffer *buffer, uint64_t qword)
     buffer->used += sizeof(uint64_t);
 }
 
-static void emit_word(struct buffer *buffer, uint16_t word)
+static void emit_dword(struct buffer *buffer, uint32_t dword)
 {
     uint8_t *write = buffer->data + buffer->used;
 
-    reserve_buffer_memory(buffer, sizeof(uint16_t));
+    reserve_buffer_memory(buffer, sizeof(uint32_t));
 
-    *(write + 0) = (word & 0xff00) >> (1 * 8);
-    *(write + 1) = (word & 0x00ff) >> (0 * 8);
+    *(write + 0) = (dword & 0xff000000) >> (3 * 8);
+    *(write + 1) = (dword & 0x00ff0000) >> (2 * 8);
+    *(write + 2) = (dword & 0x0000ff00) >> (1 * 8);
+    *(write + 3) = (dword & 0x000000ff) >> (0 * 8);
 
-    buffer->used += sizeof(uint16_t);
+    buffer->used += sizeof(uint32_t);
 }
 
 static void emit_byte(struct buffer *buffer, uint8_t byte)
@@ -447,11 +449,11 @@ static void emit_prologue(struct buffer *buffer, uintptr_t tape)
     /* movabs tape, %rsi */
     emit_rexw(buffer);
     emit_byte(buffer, 0xbe);
-    emit_qwrd(buffer, tape);
+    emit_qword(buffer, tape);
 
     /* mov $0x1, %edx */
     emit_byte(buffer, 0xba);
-    emit_word(buffer, 0x1);
+    emit_dword(buffer, 0x1);
 }
 
 static void emit_add(struct buffer *buffer, uint8_t count)
@@ -525,11 +527,41 @@ static void emit_jmp_end(struct buffer *buffer)
     emit_byte(buffer, 0x00);
 }
 
+static void emit_outchar(struct buffer *buffer)
+{
+    /* mov $0x1, %edi */
+    emit_byte(buffer, 0xbf);
+    emit_dword(buffer, 0x1);
+
+    /* mov $0x1, %eax */
+    emit_byte(buffer, 0xb8);
+    emit_dword(buffer, 0x1);
+}
+
+static void emit_inchar(struct buffer *buffer)
+{
+    /* mov $0x0, %edi */
+    emit_byte(buffer, 0xbf);
+    emit_dword(buffer, 0x0);
+
+    /* mov $0x0, %eax */
+    emit_byte(buffer, 0xb8);
+    emit_dword(buffer, 0x0);
+}
+
+static void emit_syscall(struct buffer *buffer)
+{
+    /* syscall */
+    emit_byte(buffer, 0x0f);
+    emit_byte(buffer, 0x05);
+}
+
 static struct buffer compile_objects(const struct token *tokens, uintptr_t bss, uintptr_t text)
 {
     struct buffer buffer = create_buffer();
     int num_relocations = count_relocations(tokens), relocation_idx = 0;
     struct relocation *relocations = malloc_check(num_relocations * sizeof(struct relocation));
+    int last_io = -1;
 
     emit_prologue(&buffer, bss);
 
@@ -552,12 +584,28 @@ static struct buffer compile_objects(const struct token *tokens, uintptr_t bss, 
             relocations[relocation_idx].offset = buffer.used - 1;
             relocations[relocation_idx].from = it;
             ++relocation_idx;
+            last_io = -1;
             break;
         case TOK_END:
             emit_jmp_end(&buffer);
             relocations[relocation_idx].offset = buffer.used - 1;
             relocations[relocation_idx].from = it;
             ++relocation_idx;
+            last_io = -1;
+            break;
+        case TOK_OUT:
+            if (last_io != it->type) {
+                last_io = it->type;
+                emit_outchar(&buffer);
+            }
+            emit_syscall(&buffer);
+            break;
+        case TOK_IN:
+            if (last_io != it->type) {
+                last_io = it->type;
+                emit_inchar(&buffer);
+            }
+            emit_syscall(&buffer);
             break;
         default:
             die("bad token type %d", it->type);
@@ -599,6 +647,8 @@ int main(int argc, char **argv)
     }
 
     objects = compile_objects(tokens, 0, 0);
+
+    free(objects.data);
 
 cleanup:
     free(tokens);
