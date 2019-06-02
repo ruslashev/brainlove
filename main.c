@@ -34,7 +34,7 @@ struct token
 
 struct buffer
 {
-    uint8_t *data, *write;
+    uint8_t *data;
     size_t used, allocated;
 };
 
@@ -355,37 +355,75 @@ static void reserve_buffer_memory(struct buffer *buffer, size_t by)
         expand_buffer_memory(buffer);
 }
 
-static void emit_qword(struct buffer *buffer, uint64_t qword)
+static struct buffer create_buffer()
 {
+    struct buffer buffer;
+
+    buffer.allocated = 4096;
+    buffer.used = 0;
+    buffer.data = malloc_check(buffer.allocated);
+
+    return buffer;
+}
+
+static void emit_qwrd(struct buffer *buffer, uint64_t qword)
+{
+    uint8_t *write = buffer->data + buffer->used;
+
     reserve_buffer_memory(buffer, sizeof(uint64_t));
 
-    *(buffer->write + 0) = (qword & 0xff00000000000000) >> (7 * 8);
-    *(buffer->write + 1) = (qword & 0x00ff000000000000) >> (6 * 8);
-    *(buffer->write + 2) = (qword & 0x0000ff0000000000) >> (5 * 8);
-    *(buffer->write + 3) = (qword & 0x000000ff00000000) >> (4 * 8);
-    *(buffer->write + 4) = (qword & 0x00000000ff000000) >> (3 * 8);
-    *(buffer->write + 5) = (qword & 0x0000000000ff0000) >> (2 * 8);
-    *(buffer->write + 6) = (qword & 0x000000000000ff00) >> (1 * 8);
-    *(buffer->write + 7) = (qword & 0x00000000000000ff) >> (0 * 8);
+    *(write + 0) = (qword & 0xff00000000000000) >> (7 * 8);
+    *(write + 1) = (qword & 0x00ff000000000000) >> (6 * 8);
+    *(write + 2) = (qword & 0x0000ff0000000000) >> (5 * 8);
+    *(write + 3) = (qword & 0x000000ff00000000) >> (4 * 8);
+    *(write + 4) = (qword & 0x00000000ff000000) >> (3 * 8);
+    *(write + 5) = (qword & 0x0000000000ff0000) >> (2 * 8);
+    *(write + 6) = (qword & 0x000000000000ff00) >> (1 * 8);
+    *(write + 7) = (qword & 0x00000000000000ff) >> (0 * 8);
 
-    buffer->write += 8;
+    buffer->used += sizeof(uint64_t);
+}
+
+static void emit_word(struct buffer *buffer, uint16_t word)
+{
+    uint8_t *write = buffer->data + buffer->used;
+
+    reserve_buffer_memory(buffer, sizeof(uint16_t));
+
+    *(write + 0) = (word & 0xff00) >> (1 * 8);
+    *(write + 1) = (word & 0x00ff) >> (0 * 8);
+
+    buffer->used += sizeof(uint16_t);
 }
 
 static void emit_byte(struct buffer *buffer, uint8_t byte)
 {
     reserve_buffer_memory(buffer, sizeof(uint8_t));
 
-    *buffer->write = byte;
+    *(buffer->data + buffer->used) = byte;
 
-    ++buffer->write;
+    ++buffer->used;
 }
 
-static void emit_prologue(const struct token *tokens, uintptr_t bss, uintptr_t text)
+static void emit_prologue(struct buffer *buffer, uintptr_t tape)
 {
+    /* movabs tape, %rsi */
+    emit_byte(buffer, 0x48); /* rex */
+    emit_byte(buffer, 0xbe);
+    emit_qwrd(buffer, tape);
+
+    /* mov $0x1, %edx */
+    emit_byte(buffer, 0xba);
+    emit_word(buffer, 0x1);
 }
 
 static struct buffer compile_objects(const struct token *tokens, uintptr_t bss, uintptr_t text)
 {
+    struct buffer buffer = create_buffer();
+
+    emit_prologue(&buffer, bss);
+
+    return buffer;
 }
 
 int main(int argc, char **argv)
