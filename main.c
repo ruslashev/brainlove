@@ -411,14 +411,26 @@ static void emit_qword(struct buffer *buffer, uint64_t qword)
 
     reserve_buffer_memory(buffer, sizeof(uint64_t));
 
-    *(write + 0) = (qword & 0xff00000000000000) >> (7 * 8);
-    *(write + 1) = (qword & 0x00ff000000000000) >> (6 * 8);
-    *(write + 2) = (qword & 0x0000ff0000000000) >> (5 * 8);
-    *(write + 3) = (qword & 0x000000ff00000000) >> (4 * 8);
-    *(write + 4) = (qword & 0x00000000ff000000) >> (3 * 8);
-    *(write + 5) = (qword & 0x0000000000ff0000) >> (2 * 8);
-    *(write + 6) = (qword & 0x000000000000ff00) >> (1 * 8);
-    *(write + 7) = (qword & 0x00000000000000ff) >> (0 * 8);
+    *(write + 0) = (qword & 0x00000000000000ff) >> (0 * 8);
+    *(write + 1) = (qword & 0x000000000000ff00) >> (1 * 8);
+    *(write + 2) = (qword & 0x0000000000ff0000) >> (2 * 8);
+    *(write + 3) = (qword & 0x00000000ff000000) >> (3 * 8);
+    *(write + 4) = (qword & 0x000000ff00000000) >> (4 * 8);
+    *(write + 5) = (qword & 0x0000ff0000000000) >> (5 * 8);
+    *(write + 6) = (qword & 0x00ff000000000000) >> (6 * 8);
+    *(write + 7) = (qword & 0xff00000000000000) >> (7 * 8);
+}
+
+static void emit_dword(struct buffer *buffer, uint32_t dword)
+{
+    uint8_t *write = buffer->data + buffer->used;
+
+    reserve_buffer_memory(buffer, sizeof(uint32_t));
+
+    *(write + 0) = (dword & 0x000000ff) >> (0 * 8);
+    *(write + 1) = (dword & 0x0000ff00) >> (1 * 8);
+    *(write + 2) = (dword & 0x00ff0000) >> (2 * 8);
+    *(write + 3) = (dword & 0xff000000) >> (3 * 8);
 }
 
 static void emit_byte(struct buffer *buffer, uint8_t byte)
@@ -438,14 +450,6 @@ static void emit_bytes(struct buffer *buffer, const uint8_t *bytes, size_t lengt
         *(write + i) = bytes[i];
 }
 
-static void emit_move_args(struct buffer *buffer, uint8_t imm8)
-{
-    emit_byte(buffer, imm8);
-    emit_byte(buffer, 0x0);
-    emit_byte(buffer, 0x0);
-    emit_byte(buffer, 0x0);
-}
-
 static void emit_rexw(struct buffer *buffer)
 {
     emit_byte(buffer, 0x48);
@@ -460,7 +464,7 @@ static void emit_prologue(struct buffer *buffer, uintptr_t tape)
 
     /* mov $0x1, %edx */
     emit_byte(buffer, 0xba);
-    emit_move_args(buffer, 0x1);
+    emit_dword(buffer, 0x1);
 }
 
 static void emit_add(struct buffer *buffer, uint8_t count)
@@ -538,22 +542,22 @@ static void emit_outchar(struct buffer *buffer)
 {
     /* mov $0x1, %edi */
     emit_byte(buffer, 0xbf);
-    emit_move_args(buffer, 0x1);
+    emit_dword(buffer, 0x1);
 
     /* mov $0x1, %eax */
     emit_byte(buffer, 0xb8);
-    emit_move_args(buffer, 0x1);
+    emit_dword(buffer, 0x1);
 }
 
 static void emit_inchar(struct buffer *buffer)
 {
     /* mov $0x0, %edi */
     emit_byte(buffer, 0xbf);
-    emit_move_args(buffer, 0x0);
+    emit_dword(buffer, 0x0);
 
     /* mov $0x0, %eax */
     emit_byte(buffer, 0xb8);
-    emit_move_args(buffer, 0x0);
+    emit_dword(buffer, 0x0);
 }
 
 static void emit_syscall(struct buffer *buffer)
@@ -567,11 +571,11 @@ static void emit_epilogue(struct buffer *buffer)
 {
     /* mov $0x0, %edi */
     emit_byte(buffer, 0xbf);
-    emit_move_args(buffer, 0x0);
+    emit_dword(buffer, 0x0);
 
     /* mov $0x3c, %eax */
     emit_byte(buffer, 0xb8);
-    emit_move_args(buffer, 60);
+    emit_dword(buffer, 60);
 
     emit_syscall(buffer);
 }
