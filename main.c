@@ -88,10 +88,6 @@ static struct arg parse_arguments(int argc, char **argv)
             args.output = fopen(options.optarg, "w");
             if (args.output == NULL)
                 error("can't open file '%s' for writing", options.optarg);
-
-            if (fchmod(fileno(args.output), 0777 & (~S_IWGRP) & (~S_IWOTH)) == -1)
-                error("failed to change permissions for output file");
-
             break;
         default:
             die("%s: %s", argv[0], options.errmsg);
@@ -116,6 +112,10 @@ static struct arg parse_arguments(int argc, char **argv)
 
     if (args.output == NULL)
         args.output = stdout;
+
+    if (args.assembly == 0 && args.output != stdout)
+        if (fchmod(fileno(args.output), 0777 & (~S_IWGRP) & (~S_IWOTH)) == -1)
+            error("failed to change permissions for output file");
 
     return args;
 }
