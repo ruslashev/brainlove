@@ -580,7 +580,7 @@ static void emit_epilogue(struct buffer *buffer)
     emit_syscall(buffer);
 }
 
-static struct buffer compile_objects(const struct token *tokens, uintptr_t bss, uintptr_t text)
+static struct buffer compile_objects(const struct token *tokens, uintptr_t text, uintptr_t bss)
 {
     struct buffer buffer = create_buffer();
     int num_relocations = count_relocations(tokens), relocation_idx = 0;
@@ -650,7 +650,7 @@ static struct buffer compile_objects(const struct token *tokens, uintptr_t bss, 
         if (target == NULL)
             die("no target relocation found");
 
-        buffer.data[this->offset] = target->offset + 1;
+        buffer.data[this->offset] = text + target->offset + 1;
     }
 
     free(relocations);
@@ -658,10 +658,9 @@ static struct buffer compile_objects(const struct token *tokens, uintptr_t bss, 
     return buffer;
 }
 
-static struct buffer link_elf(struct buffer *objects)
+static struct buffer link_elf(struct buffer *objects, uintptr_t text_vaddr, uintptr_t bss_vaddr)
 {
     struct buffer elf = create_buffer();
-    uintptr_t text_vaddr = 1 * 0x1000, bss_vaddr = 0x10000;
     struct elf64_ehdr header = {
         .e_ident = {
             [ei_mag0] = '\x7f',
@@ -673,18 +672,12 @@ static struct buffer link_elf(struct buffer *objects)
             [ei_version] = EV_CURRENT,
             [ei_osabi] = ELFOSABI_SYSV,
             [ei_abiversion] = 0,
-            [ei_pad] = 0,
-            [10] = 0,
-            [11] = 0,
-            [12] = 0,
-            [13] = 0,
-            [14] = 0,
-            [ei_nident - 1] = 0,
+            [ei_pad ... ei_nident - 1] = 0,
         },
         .e_type = ET_EXEC,
         .e_machine = EM_X86_64,
         .e_version = EV_CURRENT,
-        .e_entry = text_vaddr + sizeof(struct elf64_ehdr) + 2 * sizeof(struct elf64_phdr),
+        .e_entry = text_vaddr,
         .e_phoff = sizeof(struct elf64_ehdr),
         .e_shoff = 0,
         .e_flags = 0,
@@ -699,7 +692,7 @@ static struct buffer link_elf(struct buffer *objects)
         .p_type = PT_LOAD,
         .p_flags = PF_X | PF_R,
         .p_offset = 0,
-        .p_vaddr = text_vaddr,
+        .p_vaddr = 0x400000,
         .p_paddr = 0,
         .p_filesz = objects->used,
         .p_memsz = objects->used,
@@ -734,6 +727,8 @@ int main(int argc, char **argv)
     struct arg args = parse_arguments(argc, argv);
     char *source = read_file(args.input);
     struct token *tokens = tokenize_source(source);
+    /* uintptr_t bss = 0x1000, text = bss + 30000 * 8; */
+    uintptr_t bss = 0x600000, text = 0x4000b0;
     struct buffer objects, elf;
 
     parse_levels(tokens);
@@ -746,9 +741,9 @@ int main(int argc, char **argv)
     if (isatty(fileno(args.output)))
         die("won't dump binary into terminal. pipe output or specify file with -o flag.");
 
-    objects = compile_objects(tokens, 0, 0);
+    objects = compile_objects(tokens, text, bss);
 
-    elf = link_elf(&objects);
+    elf = link_elf(&objects, text, bss);
 
     write_buffer_to_file(&elf, args.output);
 
