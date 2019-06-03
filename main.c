@@ -366,7 +366,8 @@ static void expand_buffer_memory(struct buffer *buffer)
 {
     uint8_t *new;
 
-    buffer->allocated += 4096;
+    while (buffer->used >= buffer->allocated)
+        buffer->allocated += 4096;
 
     new = realloc(buffer->data, buffer->allocated);
     if (new == NULL)
@@ -375,12 +376,16 @@ static void expand_buffer_memory(struct buffer *buffer)
     buffer->data = new;
 }
 
-static void reserve_buffer_memory(struct buffer *buffer, size_t by)
+static uint8_t* reserve_buffer_memory(struct buffer *buffer, size_t by)
 {
+    size_t initial = buffer->used;
+
     buffer->used += by;
 
     if (buffer->used >= buffer->allocated)
         expand_buffer_memory(buffer);
+
+    return buffer->data + initial;
 }
 
 static struct buffer create_buffer()
@@ -407,9 +412,7 @@ static int count_relocations(const struct token *tokens)
 
 static void emit_qword(struct buffer *buffer, uint64_t qword)
 {
-    uint8_t *write = buffer->data + buffer->used;
-
-    reserve_buffer_memory(buffer, sizeof(uint64_t));
+    uint8_t *write = reserve_buffer_memory(buffer, sizeof(uint64_t));
 
     *(write + 0) = (qword & 0x00000000000000ff) >> (0 * 8);
     *(write + 1) = (qword & 0x000000000000ff00) >> (1 * 8);
@@ -423,9 +426,7 @@ static void emit_qword(struct buffer *buffer, uint64_t qword)
 
 static void emit_dword(struct buffer *buffer, uint32_t dword)
 {
-    uint8_t *write = buffer->data + buffer->used;
-
-    reserve_buffer_memory(buffer, sizeof(uint32_t));
+    uint8_t *write = reserve_buffer_memory(buffer, sizeof(uint32_t));
 
     *(write + 0) = (dword & 0x000000ff) >> (0 * 8);
     *(write + 1) = (dword & 0x0000ff00) >> (1 * 8);
@@ -435,19 +436,12 @@ static void emit_dword(struct buffer *buffer, uint32_t dword)
 
 static void emit_byte(struct buffer *buffer, uint8_t byte)
 {
-    reserve_buffer_memory(buffer, sizeof(uint8_t));
-
-    *(buffer->data + buffer->used - 1) = byte;
+    *reserve_buffer_memory(buffer, sizeof(uint8_t)) = byte;
 }
 
 static void emit_bytes(struct buffer *buffer, const uint8_t *bytes, size_t length)
 {
-    uint8_t *write = buffer->data + buffer->used;
-
-    reserve_buffer_memory(buffer, length);
-
-    for (size_t i = 0; i < length; ++i)
-        *(write + i) = bytes[i];
+    memcpy(reserve_buffer_memory(buffer, length), bytes, length);
 }
 
 static void emit_rexw(struct buffer *buffer)
