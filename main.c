@@ -232,6 +232,29 @@ static struct token* tokenize_source(const char *buffer)
     return tokens;
 }
 
+static void check_brackets(const struct token *tokens)
+{
+    int balance = 0;
+    const char *word;
+
+    for (const struct token *it = tokens; it->type != TOK_EOF; ++it)
+        if (it->type == TOK_BEG)
+            ++balance;
+        else if (it->type == TOK_END)
+            --balance;
+
+    if (balance == 0)
+        return;
+
+    if (balance < 0) {
+        word = "opening";
+        balance = -balance;
+    } else
+        word = "closing";
+
+    die("missing %d %s bracket%s", balance, word, balance == 1 ? "" : "s");
+}
+
 static int count_depth(const struct token *tokens)
 {
     int depth = 0, max_depth = 0;
@@ -724,6 +747,8 @@ int main(int argc, char **argv)
     /* uintptr_t bss = 0x1000, text = bss + 30000 * 8; */
     uintptr_t bss = 0x600000, text = 0x4000b0;
     struct buffer objects, elf;
+
+    check_brackets(tokens);
 
     parse_levels(tokens);
 
