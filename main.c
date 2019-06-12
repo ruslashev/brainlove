@@ -46,8 +46,7 @@ struct relocation
     const struct token *from;
 };
 
-#define print(...) do { printf(__VA_ARGS__); puts(""); } while (0)
-#define die(...) do { print(__VA_ARGS__); exit(EXIT_FAILURE); } while (0)
+#define die(...) do { printf(__VA_ARGS__); puts(""); exit(EXIT_FAILURE); } while (0)
 #define error(...) do { \
     printf("error: "); \
     printf(__VA_ARGS__); \
@@ -205,9 +204,8 @@ static int calculate_num_tokens(const char *buffer)
 
 static struct token* tokenize_source(const char *buffer)
 {
-    int num_tokens = calculate_num_tokens(buffer);
+    int num_tokens = calculate_num_tokens(buffer), consecutive = 1, token_idx = 0;
     struct token *tokens = malloc_check((num_tokens + 1) * sizeof(struct token));
-    int consecutive = 1, token_idx = 0;
 
     for (const char *ptr = buffer; *ptr != '\0'; advance_until_valid_token(&ptr)) {
         if (!is_valid_token(*ptr))
@@ -619,28 +617,6 @@ static void emit_epilogue(struct buffer *buffer)
 
     emit_syscall(buffer);
 }
-
-#if 0
-static void change_short_jump_to_near(struct buffer *buffer, size_t instruction)
-{
-    /* j*z rel8 (2 bytes) -> j*z rel32 (6 bytes) */
-    uint8_t *moved;
-
-    reserve_buffer_memory(buffer, 4);
-
-    /* saved buffer->data is invalid after reserve_buffer_memory because of realloc */
-    moved = buffer->data + instruction + 2;
-
-    memmove(moved + 4, moved, buffer->used - (instruction + 2));
-
-    buffer->data[instruction + 1] = 0b10000000 | (buffer->data[instruction + 0] & 0b1111);
-    buffer->data[instruction + 0] = 0x0f;
-    buffer->data[instruction + 2] = 0x0;
-    buffer->data[instruction + 3] = 0x0;
-    buffer->data[instruction + 4] = 0x0;
-    buffer->data[instruction + 5] = 0x0;
-}
-#endif
 
 static struct buffer compile_objects(const struct token *tokens, uintptr_t text, uintptr_t bss)
 {
