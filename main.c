@@ -565,8 +565,6 @@ static void emit_test_rsi(struct buffer *buffer)
 
 static void emit_jmp_beg(struct buffer *buffer)
 {
-    emit_test_rsi(buffer);
-
     /* jz rel32 */
     emit_byte(buffer, 0x0f);
     emit_byte(buffer, 0x84);
@@ -575,8 +573,6 @@ static void emit_jmp_beg(struct buffer *buffer)
 
 static void emit_jmp_end(struct buffer *buffer)
 {
-    emit_test_rsi(buffer);
-
     /* jnz rel32 */
     emit_byte(buffer, 0x0f);
     emit_byte(buffer, 0x85);
@@ -628,9 +624,8 @@ static void emit_epilogue(struct buffer *buffer)
 static struct buffer compile_objects(const struct token *tokens, uintptr_t text, uintptr_t bss)
 {
     struct buffer buffer = create_buffer();
-    int num_relocations = count_relocations(tokens), relocation_idx = 0;
+    int num_relocations = count_relocations(tokens), relocation_idx = 0, last_io = -1, tested = 0;
     struct relocation *relocations = malloc_check(num_relocations * sizeof(struct relocation));
-    int last_io = -1;
 
     emit_prologue(&buffer, bss);
 
@@ -638,17 +633,23 @@ static struct buffer compile_objects(const struct token *tokens, uintptr_t text,
         switch (it->type) {
         case TOK_ADD:
             emit_add(&buffer, it->count);
+            tested = 1;
             break;
         case TOK_SUB:
             emit_sub(&buffer, it->count);
+            tested = 1;
             break;
         case TOK_NEXT:
             emit_next(&buffer, it->count);
+            tested = 0;
             break;
         case TOK_PREV:
             emit_prev(&buffer, it->count);
+            tested = 0;
             break;
         case TOK_BEG:
+            if (!tested)
+                emit_test_rsi(&buffer);
             emit_jmp_beg(&buffer);
             relocations[relocation_idx].offset = buffer.used;
             relocations[relocation_idx].from = it;
@@ -656,6 +657,8 @@ static struct buffer compile_objects(const struct token *tokens, uintptr_t text,
             last_io = -1;
             break;
         case TOK_END:
+            if (!tested)
+                emit_test_rsi(&buffer);
             emit_jmp_end(&buffer);
             relocations[relocation_idx].offset = buffer.used;
             relocations[relocation_idx].from = it;
