@@ -447,14 +447,17 @@ static void emit_qword(struct buffer *buffer, uint64_t qword)
     *(write + 7) = (qword & 0xff00000000000000) >> (7 * 8);
 }
 
+static void encode_dword(uint8_t *data, uint32_t dword)
+{
+    *(data + 0) = (dword & 0x000000ff) >> (0 * 8);
+    *(data + 1) = (dword & 0x0000ff00) >> (1 * 8);
+    *(data + 2) = (dword & 0x00ff0000) >> (2 * 8);
+    *(data + 3) = (dword & 0xff000000) >> (3 * 8);
+}
+
 static void emit_dword(struct buffer *buffer, uint32_t dword)
 {
-    uint8_t *write = reserve_buffer_memory(buffer, sizeof(uint32_t));
-
-    *(write + 0) = (dword & 0x000000ff) >> (0 * 8);
-    *(write + 1) = (dword & 0x0000ff00) >> (1 * 8);
-    *(write + 2) = (dword & 0x00ff0000) >> (2 * 8);
-    *(write + 3) = (dword & 0xff000000) >> (3 * 8);
+    encode_dword(reserve_buffer_memory(buffer, sizeof(uint32_t)), dword);
 }
 
 static void emit_byte(struct buffer *buffer, uint8_t byte)
@@ -541,18 +544,20 @@ static void emit_jmp_beg(struct buffer *buffer)
 {
     emit_test_rsi(buffer);
 
-    /* je 0x00 */
-    emit_byte(buffer, 0x74);
-    emit_byte(buffer, 0x00);
+    /* jz rel32 */
+    emit_byte(buffer, 0x0f);
+    emit_byte(buffer, 0x84);
+    emit_dword(buffer, 0x00);
 }
 
 static void emit_jmp_end(struct buffer *buffer)
 {
     emit_test_rsi(buffer);
 
-    /* jne 0x00 */
-    emit_byte(buffer, 0x75);
-    emit_byte(buffer, 0x00);
+    /* jnz rel32 */
+    emit_byte(buffer, 0x0f);
+    emit_byte(buffer, 0x85);
+    emit_dword(buffer, 0x00);
 }
 
 static void emit_outchar(struct buffer *buffer)
@@ -597,6 +602,28 @@ static void emit_epilogue(struct buffer *buffer)
     emit_syscall(buffer);
 }
 
+#if 0
+static void change_short_jump_to_near(struct buffer *buffer, size_t instruction)
+{
+    /* j*z rel8 (2 bytes) -> j*z rel32 (6 bytes) */
+    uint8_t *moved;
+
+    reserve_buffer_memory(buffer, 4);
+
+    /* saved buffer->data is invalid after reserve_buffer_memory because of realloc */
+    moved = buffer->data + instruction + 2;
+
+    memmove(moved + 4, moved, buffer->used - (instruction + 2));
+
+    buffer->data[instruction + 1] = 0b10000000 | (buffer->data[instruction + 0] & 0b1111);
+    buffer->data[instruction + 0] = 0x0f;
+    buffer->data[instruction + 2] = 0x0;
+    buffer->data[instruction + 3] = 0x0;
+    buffer->data[instruction + 4] = 0x0;
+    buffer->data[instruction + 5] = 0x0;
+}
+#endif
+
 static struct buffer compile_objects(const struct token *tokens, uintptr_t text, uintptr_t bss)
 {
     struct buffer buffer = create_buffer();
@@ -622,14 +649,14 @@ static struct buffer compile_objects(const struct token *tokens, uintptr_t text,
             break;
         case TOK_BEG:
             emit_jmp_beg(&buffer);
-            relocations[relocation_idx].offset = buffer.used - 1;
+            relocations[relocation_idx].offset = buffer.used;
             relocations[relocation_idx].from = it;
             ++relocation_idx;
             last_io = -1;
             break;
         case TOK_END:
             emit_jmp_end(&buffer);
-            relocations[relocation_idx].offset = buffer.used - 1;
+            relocations[relocation_idx].offset = buffer.used;
             relocations[relocation_idx].from = it;
             ++relocation_idx;
             last_io = -1;
@@ -657,6 +684,8 @@ static struct buffer compile_objects(const struct token *tokens, uintptr_t text,
     for (int i = 0; i < num_relocations; ++i) {
         const struct relocation *this = &relocations[i], *target = NULL;
         int target_type = this->from->type == TOK_BEG ? TOK_END : TOK_BEG;
+        intptr_t jump;
+        uint32_t near_jump;
 
         for (int j = 0; j < num_relocations; ++j)
             if (relocations[j].from->level == this->from->level
@@ -667,7 +696,15 @@ static struct buffer compile_objects(const struct token *tokens, uintptr_t text,
         if (target == NULL)
             die("no target relocation found");
 
-        buffer.data[this->offset] = text + target->offset + 1;
+        jump = target->offset - this->offset;
+
+        if (jump < 0) {
+            near_jump = -jump;
+            near_jump = ~near_jump + 1;
+        } else
+            near_jump = jump;
+
+        encode_dword(buffer.data + this->offset - 4, near_jump);
     }
 
     free(relocations);
