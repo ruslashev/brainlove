@@ -317,14 +317,13 @@ static void output_assembly(const struct token *tokens, FILE *output)
         "    mov rax, 1\n"
         , *syscall =
         "    syscall\n"
-        , *jmp_beg =
+        , *test =
         "    mov r11, [rsi]\n"
         "    test r11, r11\n"
+        , *jmp_beg =
         "    jz end_%d_%d\n"
         "beg_%d_%d:\n"
         , *jmp_end =
-        "    mov r11, [rsi]\n"
-        "    test r11, r11\n"
         "    jnz beg_%d_%d\n"
         "end_%d_%d:\n"
         , *add =
@@ -335,7 +334,7 @@ static void output_assembly(const struct token *tokens, FILE *output)
         "    lea rsi, [rsi + %d * 8]\n"
         , *prev =
         "    lea rsi, [rsi - %d * 8]\n";
-    int last_io = -1;
+    int last_io = -1, tested = 0;
 
     if (fputs(prologue, output) == EOF)
         error("failed to write prologue");
@@ -344,21 +343,29 @@ static void output_assembly(const struct token *tokens, FILE *output)
         switch (it->type) {
         case TOK_ADD:
             fprintf(output, add, it->count);
+            tested = 1;
             break;
         case TOK_SUB:
             fprintf(output, sub, it->count);
+            tested = 1;
             break;
         case TOK_NEXT:
             fprintf(output, next, it->count);
+            tested = 0;
             break;
         case TOK_PREV:
             fprintf(output, prev, it->count);
+            tested = 0;
             break;
         case TOK_BEG:
+            if (!tested)
+                fputs(test, output);
             fprintf(output, jmp_beg, it->level, it->occurence, it->level, it->occurence);
             last_io = -1;
             break;
         case TOK_END:
+            if (!tested)
+                fputs(test, output);
             fprintf(output, jmp_end, it->level, it->occurence, it->level, it->occurence);
             last_io = -1;
             break;
