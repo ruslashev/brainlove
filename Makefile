@@ -7,14 +7,6 @@ objdir = .obj
 objsubst = $(objdir)/%.o
 obj = $(src:%=$(objsubst))
 
-test: $(bin)
-	./$(bin) examples/hello-world.bf -o hw
-	./hw
-	./$(bin) examples/rpn.bf -o rpn
-	/bin/echo -e '10 2 3 * +\x0d' | ./rpn && echo
-	./$(bin) examples/mandelbrot.bf -o mb
-	./mb
-
 $(bin): $(obj)
 	@echo "link $@"
 	@$(cc) $< $(lflags) -o $@
@@ -34,4 +26,12 @@ asm:
 	nasm gen.asm -f elf64 -o gen.o
 	ld -o gen gen.o -m elf_x86_64
 	./gen
+
+test: $(bin)
+	./$(bin) examples/hello-world.bf -o hw
+	./hw
+	./$(bin) examples/rpn.bf -o rpn
+	/bin/echo -e '10 2 3 * +\x0d' | ./rpn && echo
+	./$(bin) examples/mandelbrot.bf -o mb
+	./mb
 
