@@ -64,6 +64,17 @@ static void* malloc_check(size_t size)
     return buffer;
 }
 
+static void print_usage_and_exit()
+{
+    puts("Usage: brainlove [source file] [-a | --assembly] [-h | --help] [-o | --output]\n"
+         "  source file    filename to read brainfuck from or optionally use \"-\" for stdin\n"
+         "  -a --assembly  emit assembly (nasm) source code instead of a compiled binary\n"
+         "  -o --output    specify filename for output. If -a provided, put assembly there\n"
+         "  -h --help      print this message");
+
+    exit(EXIT_SUCCESS);
+}
+
 static struct arg parse_arguments(int argc, char **argv)
 {
     int option;
@@ -71,10 +82,14 @@ static struct arg parse_arguments(int argc, char **argv)
     struct optparse_long longopts[] = {
         { "assembly", 'a', OPTPARSE_NONE },
         { "output",   'o', OPTPARSE_REQUIRED },
+        { "help",     'h', OPTPARSE_NONE },
         { 0 }
     };
     struct arg args = { .assembly = 0, .input = NULL, .output = NULL };
     char *extra;
+
+    if (argc == 1)
+        print_usage_and_exit();
 
     optparse_init(&options, argv);
 
@@ -83,6 +98,8 @@ static struct arg parse_arguments(int argc, char **argv)
         case 'a':
             args.assembly = 1;
             break;
+        case 'h':
+            print_usage_and_exit();
         case 'o':
             args.output = fopen(options.optarg, "w");
             if (args.output == NULL)
