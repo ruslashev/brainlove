@@ -10,6 +10,10 @@ obj = $(src:%=$(objsubst))
 test: $(bin)
 	./$(bin) examples/hello-world.bf -o hw
 	./hw
+	./$(bin) examples/rpn.bf -o rpn
+	/bin/echo -e '10 2 3 * +\x0d' | ./rpn && echo
+	./$(bin) examples/mandelbrot.bf -o mb
+	./mb
 
 $(bin): $(obj)
 	@echo "link $@"
