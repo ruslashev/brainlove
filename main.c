@@ -505,26 +505,44 @@ static void emit_sub(struct buffer *buffer, uint8_t count)
     emit_byte(buffer, count);
 }
 
-static void emit_next(struct buffer *buffer, uint8_t count)
+static void emit_lea(struct buffer *buffer, int offset)
 {
+    uint8_t rel8;
+    uint32_t rel32;
+
     /* lea $count(%rsi), %rsi */
     emit_rexw(buffer);
     emit_byte(buffer, 0x8d);
-    emit_byte(buffer, 0x76);
-    emit_byte(buffer, 8 * count);
+
+    if (offset >= -128 && offset <= 127) {
+        if (offset < 0) {
+            rel8 = -offset;
+            rel8 = ~rel8 + 1;
+        } else
+            rel8 = offset;
+
+        emit_byte(buffer, 0x76);
+        emit_byte(buffer, rel8);
+    } else {
+        if (offset < 0) {
+            rel32 = -offset;
+            rel32 = ~rel32 + 1;
+        } else
+            rel32 = offset;
+
+        emit_byte(buffer, 0xb6);
+        emit_dword(buffer, rel32);
+    }
 }
 
-static void emit_prev(struct buffer *buffer, uint8_t count)
+static void emit_next(struct buffer *buffer, int count)
 {
-    uint8_t offset = 8 * count;
+    emit_lea(buffer, 8 * count);
+}
 
-    offset = ~offset + 1;
-
-    /* lea $count(%rsi), %rsi */
-    emit_rexw(buffer);
-    emit_byte(buffer, 0x8d);
-    emit_byte(buffer, 0x76);
-    emit_byte(buffer, offset);
+static void emit_prev(struct buffer *buffer, int count)
+{
+    emit_lea(buffer, -8 * count);
 }
 
 static void emit_test_rsi(struct buffer *buffer)
