@@ -50,8 +50,7 @@ struct relocation
 #define error(...) do { \
     printf("error: "); \
     printf(__VA_ARGS__); \
-    printf(": %s", strerror(errno)); \
-    puts(""); \
+    printf(": %s\n", strerror(errno)); \
     exit(EXIT_FAILURE); \
 } while (0)
 
@@ -59,7 +58,7 @@ static void* malloc_check(size_t size)
 {
     void *buffer = malloc(size);
     if (buffer == NULL)
-        error("failed to alloc %zd bytes", size);
+        error("failed to alloc %zu bytes", size);
 
     return buffer;
 }
@@ -287,8 +286,12 @@ static int count_depth(const struct token *tokens)
 
 static void parse_levels(struct token *tokens)
 {
-    int level = 0, max_depth = count_depth(tokens),
-        *occurence = malloc_check(max_depth * sizeof(int));
+    int level = 0, max_depth = count_depth(tokens), *occurence;
+
+    if (max_depth == 0)
+        return;
+
+    occurence = malloc_check(max_depth * sizeof(int));
 
     memset(occurence, 0, max_depth * sizeof(int));
 
