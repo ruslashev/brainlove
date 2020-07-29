@@ -251,11 +251,15 @@ static void check_brackets(const struct token *tokens)
     int balance = 0;
     const char *word;
 
-    for (const struct token *it = tokens; it->type != TOK_EOF; ++it)
+    for (const struct token *it = tokens; it->type != TOK_EOF; ++it) {
         if (it->type == TOK_BEG)
             ++balance;
         else if (it->type == TOK_END)
             --balance;
+
+        if (balance < 0)
+            die("closing bracket appears without matching opening bracket");
+    }
 
     if (balance == 0)
         return;
